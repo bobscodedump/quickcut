@@ -14,12 +14,15 @@ def uid(*parts):
     return hashlib.md5("/".join(parts).encode()).hexdigest()[:24].upper()
 
 
-def swift_files(folder):
+RESOURCE_TYPES = {".icns": "image.icns"}
+
+
+def swift_files(folder, exts=(".swift",)):
     out = []
     for dirpath, dirnames, filenames in os.walk(os.path.join(ROOT, folder)):
         dirnames.sort()
         for f in sorted(filenames):
-            if f.endswith(".swift"):
+            if f.endswith(exts):
                 out.append(os.path.relpath(os.path.join(dirpath, f), ROOT))
     return out
 
@@ -45,8 +48,9 @@ def build_group(folder, sources):
             if os.path.dirname(s) == key:
                 fid = uid("fileref", s)
                 ext = os.path.splitext(s)[1]
+                ftype = RESOURCE_TYPES.get(ext, "sourcecode.swift")
                 add(fid, os.path.basename(s),
-                    f'isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "{os.path.basename(s)}"; sourceTree = "<group>";')
+                    f'isa = PBXFileReference; lastKnownFileType = {ftype}; path = "{os.path.basename(s)}"; sourceTree = "<group>";')
                 children.append(fid)
         if len(path_parts) == 1:
             for extra in ("Info.plist",):
@@ -61,8 +65,9 @@ def build_group(folder, sources):
 
 
 app_sources = swift_files(APP)
+app_resources = swift_files(APP, tuple(RESOURCE_TYPES))
 test_sources = swift_files(TESTS)
-app_group = build_group(APP, app_sources)
+app_group = build_group(APP, sorted(app_sources + app_resources))
 test_group = build_group(TESTS, test_sources)
 
 app_product = uid("product", APP)
@@ -84,6 +89,17 @@ def sources_phase(name, sources):
         add(bid, f"{os.path.basename(s)} in Sources", f'isa = PBXBuildFile; fileRef = {uid("fileref", s)};')
         files.append(f"\t\t\t\t{bid}")
     add(pid, "Sources", "isa = PBXSourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n" + ",\n".join(files) + "\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;")
+    return pid
+
+
+def resources_phase(name, resources):
+    pid = uid("resources", name)
+    files = []
+    for s in resources:
+        bid = uid("buildfile", name, s)
+        add(bid, f"{os.path.basename(s)} in Resources", f'isa = PBXBuildFile; fileRef = {uid("fileref", s)};')
+        files.append(f"\t\t\t\t{bid}")
+    add(pid, "Resources", "isa = PBXResourcesBuildPhase;\n\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n" + ",\n".join(files) + "\n\t\t\t);\n\t\t\trunOnlyForDeploymentPostprocessing = 0;")
     return pid
 
 
@@ -154,13 +170,13 @@ dep = uid("dependency")
 add(proxy, "PBXContainerItemProxy", f"isa = PBXContainerItemProxy;\n\t\t\tcontainerPortal = {uid('project')};\n\t\t\tproxyType = 1;\n\t\t\tremoteGlobalIDString = {app_target};\n\t\t\tremoteInfo = {APP};")
 add(dep, "PBXTargetDependency", f"isa = PBXTargetDependency;\n\t\t\ttarget = {app_target};\n\t\t\ttargetProxy = {proxy};")
 
-add(app_target, APP, f"isa = PBXNativeTarget;\n\t\t\tbuildConfigurationList = {app_list};\n\t\t\tbuildPhases = (\n\t\t\t\t{sources_phase(APP, app_sources)},\n\t\t\t\t{frameworks_phase(APP)}\n\t\t\t);\n\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n\t\t\tname = {APP};\n\t\t\tproductName = {APP};\n\t\t\tproductReference = {app_product};\n\t\t\tproductType = \"com.apple.product-type.application\";")
+add(app_target, APP, f"isa = PBXNativeTarget;\n\t\t\tbuildConfigurationList = {app_list};\n\t\t\tbuildPhases = (\n\t\t\t\t{sources_phase(APP, app_sources)},\n\t\t\t\t{frameworks_phase(APP)},\n\t\t\t\t{resources_phase(APP, app_resources)}\n\t\t\t);\n\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t);\n\t\t\tname = {APP};\n\t\t\tproductName = {APP};\n\t\t\tproductReference = {app_product};\n\t\t\tproductType = \"com.apple.product-type.application\";")
 add(test_target, TESTS, f"isa = PBXNativeTarget;\n\t\t\tbuildConfigurationList = {test_list};\n\t\t\tbuildPhases = (\n\t\t\t\t{sources_phase(TESTS, test_sources)},\n\t\t\t\t{frameworks_phase(TESTS)}\n\t\t\t);\n\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n\t\t\t\t{dep}\n\t\t\t);\n\t\t\tname = {TESTS};\n\t\t\tproductName = {TESTS};\n\t\t\tproductReference = {test_product};\n\t\t\tproductType = \"com.apple.product-type.bundle.unit-test\";")
 
 project = uid("project")
 add(project, "Project object", f"isa = PBXProject;\n\t\t\tattributes = {{\n\t\t\t\tBuildIndependentTargetsInParallel = 1;\n\t\t\t\tLastSwiftUpdateCheck = 2600;\n\t\t\t\tLastUpgradeCheck = 2600;\n\t\t\t}};\n\t\t\tbuildConfigurationList = {proj_list};\n\t\t\tcompatibilityVersion = \"Xcode 14.0\";\n\t\t\tdevelopmentRegion = en;\n\t\t\thasScannedForEncodings = 0;\n\t\t\tknownRegions = (\n\t\t\t\ten,\n\t\t\t\tBase\n\t\t\t);\n\t\t\tmainGroup = {main_group};\n\t\t\tproductRefGroup = {products};\n\t\t\tprojectDirPath = \"\";\n\t\t\tprojectRoot = \"\";\n\t\t\ttargets = (\n\t\t\t\t{app_target},\n\t\t\t\t{test_target}\n\t\t\t);")
 
-order = ["PBXBuildFile", "PBXContainerItemProxy", "PBXFileReference", "PBXGroup", "PBXNativeTarget", "PBXProject", "PBXSourcesBuildPhase", "PBXFrameworksBuildPhase", "PBXTargetDependency", "XCBuildConfiguration", "XCConfigurationList"]
+order = ["PBXBuildFile", "PBXContainerItemProxy", "PBXFileReference", "PBXGroup", "PBXNativeTarget", "PBXProject", "PBXResourcesBuildPhase", "PBXSourcesBuildPhase", "PBXFrameworksBuildPhase", "PBXTargetDependency", "XCBuildConfiguration", "XCConfigurationList"]
 by_isa = {k: [] for k in order}
 for oid, (comment, body) in sorted(objects.items()):
     isa = body.split("isa = ")[1].split(";")[0]
@@ -213,4 +229,4 @@ scheme = f'''<?xml version="1.0" encoding="UTF-8"?>
 '''
 with open(os.path.join(proj_dir, "xcshareddata/xcschemes/DragWheel.xcscheme"), "w") as f:
     f.write(scheme)
-print(f"Generated project with {len(app_sources)} app files and {len(test_sources)} test files")
+print(f"Generated project with {len(app_sources)} app files, {len(app_resources)} resources and {len(test_sources)} test files")

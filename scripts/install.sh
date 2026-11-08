@@ -6,11 +6,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ "${SWIFTPM:-0}" == "1" ]]; then
-  scripts/package_swiftpm.sh build/Package
-  APP="$PWD/build/Package/DragWheel.app"
+  scripts/package_swiftpm.sh build/Package.noindex
+  APP="$PWD/build/Package.noindex/DragWheel.app"
 else
   scripts/build.sh Release
-  APP="$PWD/build/Build/Products/Release/DragWheel.app"
+  APP="$PWD/build/DerivedData.noindex/Build/Products/Release/DragWheel.app"
 fi
 
 pkill -x DragWheel 2>/dev/null || true

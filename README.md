@@ -70,7 +70,7 @@ Then drag a file, press Shift while still dragging, and drop it on a format. See
 ## Build
 
 ```sh
-scripts/build.sh            # Release build with xcodebuild → build/Build/Products/Release/DragWheel.app
+scripts/build.sh            # Release build with xcodebuild → build/DerivedData.noindex/Build/Products/Release/DragWheel.app
 scripts/test.sh             # unit tests via xcodebuild
 scripts/package.sh          # Release build zipped for sharing → build/DragWheel.zip
 ```
@@ -97,7 +97,7 @@ scripts/install.sh          # builds Release, copies to /Applications, launches
 Manual equivalent:
 
 1. `scripts/build.sh`
-2. `ditto build/Build/Products/Release/DragWheel.app /Applications/DragWheel.app`
+2. `ditto build/DerivedData.noindex/Build/Products/Release/DragWheel.app /Applications/DragWheel.app`
 3. `xattr -dr com.apple.quarantine /Applications/DragWheel.app` (only needed if it came from elsewhere)
 4. `open /Applications/DragWheel.app` → a ⟳ icon appears in the menu bar.
 5. Optional: menu → **Launch at Login** (works best from /Applications).
@@ -218,6 +218,9 @@ throw on failure (the manager rolls back reserved files); honour cancellation.
 
 ## Development
 
+- **Icon**: a lemon slice whose 8 segments mirror the wheel, with one segment popped out like a highlighted slice.
+  It's drawn in code: `swift scripts/make_icon.swift [preview.png]` regenerates `DragWheel/Resources/AppIcon.icns`.
+  The monochrome menu bar version is `DragWheel/UI/LemonGlyph.swift`.
 - `swift test` runs everything without Xcode project machinery; `scripts/test.sh` does the same through xcodebuild.
 - `DragWheel --demo` / `--demo-many` show a sample wheel (the latter exercises "More…" and a greyed slice);
   `--demo-snapshot=/path/out.png` writes the wheel to a PNG and quits; `--no-permission-prompt` skips the alert.
@@ -244,8 +247,8 @@ To make it open with a plain double-click everywhere, sign it with a *Developer 
 ## Troubleshooting
 
 **Lots of "DragWheel" copies in Launchpad / Spotlight / Open With.** Every built copy counts as an app, including
-the ones in the project's `build/` folder. Only `/Applications/DragWheel.app` is needed. The build scripts now mark
-`build/` as "don't index", but older copies may linger:
+the ones in the project's `build/` folder. Only `/Applications/DragWheel.app` is needed. Build products now go into `build/*.noindex`
+folders, which Spotlight and Launchpad skip, but older copies may linger:
 
 ```sh
 # list every copy macOS knows about

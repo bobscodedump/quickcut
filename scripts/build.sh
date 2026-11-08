@@ -5,8 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${1:-Release}"
-# Keep build products out of Spotlight / Launchpad (otherwise every build shows up as another "DragWheel").
-mkdir -p build && touch build/.metadata_never_index
+# Build products live in *.noindex folders, which Spotlight / Launchpad skip (otherwise every build
+# shows up as another "DragWheel" app).
 
 IDENTITY="$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)"
 SIGN_ARGS=()
@@ -19,6 +19,6 @@ else
 fi
 
 xcodebuild -project DragWheel.xcodeproj -scheme DragWheel -configuration "$CONFIG" \
-  -derivedDataPath build -destination 'platform=macOS' "${SIGN_ARGS[@]}" build
+  -derivedDataPath build/DerivedData.noindex -destination 'platform=macOS' "${SIGN_ARGS[@]}" build
 
-echo "Built: $PWD/build/Build/Products/$CONFIG/DragWheel.app"
+echo "Built: $PWD/build/DerivedData.noindex/Build/Products/$CONFIG/DragWheel.app"

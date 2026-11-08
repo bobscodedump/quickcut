@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 xcodebuild -project DragWheel.xcodeproj -scheme DragWheel -configuration Debug \
-  -derivedDataPath build -destination 'platform=macOS' test
+  -derivedDataPath build/DerivedData.noindex -destination 'platform=macOS' test

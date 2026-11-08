@@ -7,7 +7,7 @@ let package = Package(
     name: "DragWheel",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "DragWheel", path: "DragWheel", exclude: ["Info.plist"]),
+        .executableTarget(name: "DragWheel", path: "DragWheel", exclude: ["Info.plist", "Resources"]),
         .testTarget(name: "DragWheelTests", dependencies: ["DragWheel"], path: "DragWheelTests"),
     ],
     swiftLanguageVersions: [.v5]

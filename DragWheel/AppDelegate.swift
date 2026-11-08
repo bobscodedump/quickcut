@@ -98,7 +98,7 @@ final class AppController: NSObject, NSMenuDelegate {
 
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath.circle", accessibilityDescription: "DragWheel")
+        item.button?.image = LemonGlyph.menuBarImage()
         let menu = NSMenu()
         menu.delegate = self
 
