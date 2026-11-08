@@ -5,7 +5,20 @@ and a radial wheel of valid target formats appears under your cursor. Drop on a 
 saved next to the original (`photo.png` → `photo.jpg`; if that exists, `photo 2.jpg`, `photo 3.jpg`, …).
 The original is never overwritten or deleted.
 
-Personal-use app: not sandboxed, not for the App Store. macOS 14+.
+Personal-use app: not sandboxed, not for the App Store.
+
+**Requirements**: macOS 14 or later (Apple Silicon or Intel). To build: Xcode 15 or later.
+Optional tools enable more formats: `brew install ffmpeg webp` (video, audio, WebP) and
+`brew install --cask libreoffice` (Office and iWork files).
+
+**Quick start**
+
+```sh
+git clone <this repo> && cd file_converter
+scripts/install.sh      # build, copy to /Applications, launch
+```
+
+Then drag a file, press Shift while still dragging, and drop it on a format. See [How to use](#how-to-use).
 
 ## Features
 
@@ -59,6 +72,7 @@ Personal-use app: not sandboxed, not for the App Store. macOS 14+.
 ```sh
 scripts/build.sh            # Release build with xcodebuild → build/Build/Products/Release/DragWheel.app
 scripts/test.sh             # unit tests via xcodebuild
+scripts/package.sh          # Release build zipped for sharing → build/DragWheel.zip
 ```
 
 > **If `xcodebuild` prints "A required plugin failed to load … run xcodebuild -runFirstLaunch"**, run
@@ -207,6 +221,58 @@ throw on failure (the manager rolls back reserved files); honour cancellation.
 - `swift test` runs everything without Xcode project machinery; `scripts/test.sh` does the same through xcodebuild.
 - `DragWheel --demo` / `--demo-many` show a sample wheel (the latter exercises "More…" and a greyed slice);
   `--demo-snapshot=/path/out.png` writes the wheel to a PNG and quits; `--no-permission-prompt` skips the alert.
+
+## Sharing the app
+
+```sh
+scripts/package.sh      # → build/DragWheel.zip (universal: Apple Silicon + Intel)
+```
+
+Send the zip. The app is ad-hoc signed and not notarized, so on another Mac:
+
+1. Unzip and move `DragWheel.app` to `/Applications`.
+2. The first launch is blocked by Gatekeeper ("can't be opened"). Open System Settings → Privacy & Security and
+   click **Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/DragWheel.app` in Terminal.
+3. Allow Notifications and the folder-access prompts. Accessibility is optional.
+4. For video, audio and Office formats they also need `brew install ffmpeg webp` and `brew install --cask libreoffice`.
+
+To make it open with a plain double-click everywhere, sign it with a *Developer ID Application* certificate
+(paid Apple Developer Program), turn on the hardened runtime (`ENABLE_HARDENED_RUNTIME = YES` in
+`scripts/generate_project.py`), and notarize it with `xcrun notarytool submit … --wait` and
+`xcrun stapler staple DragWheel.app`.
+
+## Troubleshooting
+
+**Lots of "DragWheel" copies in Launchpad / Spotlight / Open With.** Every built copy counts as an app, including
+the ones in the project's `build/` folder. Only `/Applications/DragWheel.app` is needed. The build scripts now mark
+`build/` as "don't index", but older copies may linger:
+
+```sh
+# list every copy macOS knows about
+mdfind "kMDItemCFBundleIdentifier == 'local.dragwheel.DragWheel'"
+# unregister and delete a stray copy (repeat per path; never needed for /Applications)
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u <path>/DragWheel.app
+rm -rf <path>/DragWheel.app
+# optional: rebuild Launchpad (also resets its layout)
+defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock
+```
+
+**Duplicate entries in Accessibility or Login Items, or Accessibility "on" but not working.** Ad-hoc signed
+rebuilds look like new apps to macOS. Remove every DragWheel entry in System Settings → Privacy & Security →
+Accessibility (and General → Login Items), then add `/Applications/DragWheel.app` again. To reset in one go:
+`tccutil reset Accessibility local.dragwheel.DragWheel`.
+
+**The wheel doesn't appear.** Check the menu bar icon → **Enabled** is ticked, and that you press the trigger key
+*while* the mouse button is still held mid-drag. Promised files (e.g. dragged straight out of Mail or Photos) aren't
+real files yet and are ignored.
+
+**A slice is greyed out.** Hover it during the drag. The centre of the wheel says which tool to install. Settings →
+Tools shows what was found.
+
+**`xcodebuild` says "A required plugin failed to load".** Run `sudo xcodebuild -runFirstLaunch` once.
+
+**Where did my file go?** Menu bar icon → Recent Conversions, or the log at `~/Library/Logs/DragWheel/conversions.log`.
+If the original's folder is read-only, the output goes to `~/Downloads` (the notification says so).
 
 ## Known limitations
 

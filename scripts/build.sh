@@ -5,6 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${1:-Release}"
+# Keep build products out of Spotlight / Launchpad (otherwise every build shows up as another "DragWheel").
+mkdir -p build && touch build/.metadata_never_index
 
 IDENTITY="$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)"
 SIGN_ARGS=()

@@ -4,6 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${1:-build/Package}"
+# Keep build products out of Spotlight / Launchpad (otherwise every build shows up as another "DragWheel").
+mkdir -p build && touch build/.metadata_never_index
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/DragWheel"
 APP="$OUT/DragWheel.app"
