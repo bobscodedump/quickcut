@@ -12,7 +12,7 @@ The original is never overwritten or deleted.
 
 [![Zest demo: drag a file, press Shift, drop it on a format](media/Zest-demo-poster.jpg)](media/Zest-demo.mp4)
 
-▶ **[Watch the 26-second demo](media/Zest-demo.mp4)** (MP4, 1080p): the drag → Shift → drop flow, then what else it converts.
+▶ **[Watch the 26-second demo]** (MP4, 1080p): the drag → Shift → drop flow, then what else it converts.
 
 
 
