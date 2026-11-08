@@ -226,6 +226,13 @@ throw on failure (the manager rolls back reserved files); honour cancellation.
 - **Icon**: a lemon slice whose 8 segments mirror the wheel, with one segment popped out like a highlighted slice.
   It's drawn in code: `swift scripts/make_icon.swift [preview.png]` regenerates `DragWheel/Resources/AppIcon.icns`.
   The monochrome menu bar version is `DragWheel/UI/LemonGlyph.swift`.
+- **Product video**: `scripts/make_video.swift` renders a 26-second 1080p walkthrough (every frame drawn in code with the
+  app's real wheel geometry and icon, encoded with ffmpeg):
+  ```sh
+  swiftc -O -parse-as-library -o build/make_video scripts/make_video.swift \
+    DragWheel/UI/WheelGeometry.swift DragWheel/Core/WheelVisibilityPolicy.swift DragWheel/UI/LemonGlyph.swift
+  build/make_video build/video/Zest-demo.mp4     # also writes Zest-demo-poster.png
+  ```
 - `swift test` runs everything without Xcode project machinery; `scripts/test.sh` does the same through xcodebuild.
 - `Zest.app/Contents/MacOS/DragWheel --demo` / `--demo-many` show a sample wheel (the latter exercises "More…" and a greyed slice);
   `--demo-snapshot=/path/out.png` writes the wheel to a PNG and quits; `--no-permission-prompt` skips the alert.
