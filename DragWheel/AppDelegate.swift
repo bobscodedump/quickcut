@@ -108,7 +108,7 @@ final class AppController: NSObject, NSMenuDelegate {
         recentItem.submenu = NSMenu()
         permissionItem = NSMenuItem(title: "", action: #selector(openPermissions), keyEquivalent: "")
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        let quit = NSMenuItem(title: "Quit DragWheel", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Zest", action: #selector(quitApp), keyEquivalent: "q")
 
         [enabledItem, loginItem, .separator(), recentItem, settingsItem, .separator(), permissionItem, .separator(), quit]
             .forEach { menu.addItem($0!) }
@@ -151,7 +151,7 @@ final class AppController: NSObject, NSMenuDelegate {
         } catch {
             let alert = NSAlert(error: error)
             alert.messageText = "Couldn't change Launch at Login"
-            alert.informativeText = "\(error.localizedDescription)\n\nInstall DragWheel in /Applications and try again."
+            alert.informativeText = "\(error.localizedDescription)\n\nInstall Zest in /Applications and try again."
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
         }
@@ -168,7 +168,7 @@ final class AppController: NSObject, NSMenuDelegate {
     @objc private func openSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(settings: settings)))
-            window.title = "DragWheel Settings"
+            window.title = "Zest Settings"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.center()

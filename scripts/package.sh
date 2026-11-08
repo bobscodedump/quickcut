@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds a Release app and zips it for sharing → build/DragWheel.zip
+# Builds a Release app and zips it for sharing → build/Zest.zip (containing Zest.app)
 # Usage: scripts/package.sh            (xcodebuild)
 #        SWIFTPM=1 scripts/package.sh  (SwiftPM fallback)
 set -euo pipefail
@@ -11,7 +11,10 @@ else
   scripts/build.sh Release
   APP="$PWD/build/DerivedData.noindex/Build/Products/Release/DragWheel.app"
 fi
-rm -f build/DragWheel.zip
+STAGE=build/Share.noindex
+rm -rf "$STAGE" build/Zest.zip && mkdir -p "$STAGE"
+ditto "$APP" "$STAGE/Zest.app"
 # ditto (not Finder's Compress / plain zip) keeps the code signature intact.
-ditto -c -k --keepParent "$APP" build/DragWheel.zip
-echo "Packaged: $PWD/build/DragWheel.zip"
+ditto -c -k --keepParent "$STAGE/Zest.app" build/Zest.zip
+rm -rf "$STAGE"
+echo "Packaged: $PWD/build/Zest.zip"

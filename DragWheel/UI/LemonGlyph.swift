@@ -35,7 +35,7 @@ enum LemonGlyph {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "DragWheel"
+        image.accessibilityDescription = "Zest"
         return image
     }
 }

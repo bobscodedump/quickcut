@@ -13,10 +13,19 @@ else
   APP="$PWD/build/DerivedData.noindex/Build/Products/Release/DragWheel.app"
 fi
 
+# The app is shown and installed as "Zest" (the project, executable and bundle ID are still DragWheel).
+DEST=/Applications/Zest.app
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 pkill -x DragWheel 2>/dev/null || true
 sleep 0.5
-rm -rf /Applications/DragWheel.app
-ditto "$APP" /Applications/DragWheel.app
-xattr -dr com.apple.quarantine /Applications/DragWheel.app 2>/dev/null || true
-open /Applications/DragWheel.app
-echo "Installed and launched /Applications/DragWheel.app"
+# Remove the copy installed under the old name, so there's only one app.
+if [[ -d /Applications/DragWheel.app ]]; then
+  "$LSREGISTER" -u /Applications/DragWheel.app 2>/dev/null || true
+  rm -rf /Applications/DragWheel.app
+  echo "Removed old /Applications/DragWheel.app"
+fi
+rm -rf "$DEST"
+ditto "$APP" "$DEST"
+xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
+open "$DEST"
+echo "Installed and launched $DEST"

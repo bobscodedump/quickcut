@@ -25,12 +25,12 @@ enum PermissionService {
         guard !isAccessibilityGranted, !UserDefaults.standard.bool(forKey: suppressKey) else { return }
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Grant Accessibility access to DragWheel"
+        alert.messageText = "Grant Accessibility access to Zest"
         alert.informativeText = """
-        DragWheel watches for the trigger key while you drag files. Without Accessibility access it falls back \
+        Zest watches for the trigger key while you drag files. Without Accessibility access it falls back \
         to polling, which works but may react a moment late to Shift and Esc.
 
-        Click “Open System Settings”, enable DragWheel under Privacy & Security → Accessibility, then relaunch the app. \
+        Click “Open System Settings”, enable Zest under Privacy & Security → Accessibility, then relaunch the app. \
         If the entry is already listed, remove it and add it again (rebuilt ad-hoc signed apps lose the grant).
         """
         alert.addButton(withTitle: "Open System Settings")
