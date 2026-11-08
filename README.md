@@ -14,6 +14,12 @@ The original is never overwritten or deleted.
 
 ▶ **[Watch the 26-second demo](media/Zest-demo.mp4)** (MP4, 1080p): the drag → Shift → drop flow, then what else it converts.
 
+
+
+https://github.com/user-attachments/assets/28413352-ede6-4311-b6a4-cb73593c8c26
+
+
+
 Personal-use app: not sandboxed, not for the App Store.
 
 **Requirements**: macOS 14 or later (Apple Silicon or Intel). To build: Xcode 15 or later.
