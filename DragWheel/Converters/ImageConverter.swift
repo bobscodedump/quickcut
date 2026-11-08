@@ -2,7 +2,8 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Image ↔ image (ImageIO) and image → PDF. WebP encoding uses cwebp or ffmpeg because ImageIO can't encode it.
+/// Image ↔ image (ImageIO), image → PDF, and image → TXT (OCR via Vision).
+/// WebP encoding uses cwebp or ffmpeg because ImageIO can't encode it.
 struct ImageConverter: Converter {
     let id = "image"
     let tools: ToolLocator
@@ -15,13 +16,13 @@ struct ImageConverter: Converter {
     }
 
     func outputFormats(for input: UTType) -> [OutputFormat] {
-        excludingSelf([.png, .jpeg, .heic, .tiff, .gif, .bmp, .webp, .pdf], input: input)
+        excludingSelf([.png, .jpeg, .heic, .tiff, .gif, .bmp, .webp, .avif, .ico, .icns, .pdf, .txt], input: input)
     }
 
     func availability(of format: OutputFormat) -> Availability {
         switch format.id {
-        case "heic":
-            return ImageCodec.canEncodeNatively("heic") ? .available : .unavailable(reason: "This Mac can't encode HEIC.")
+        case "heic", "avif", "ico", "icns":
+            return ImageCodec.canEncodeNatively(format.id) ? .available : .unavailable(reason: "This Mac can't encode \(format.displayName).")
         case "webp":
             if ImageCodec.canEncodeNatively("webp") || tools.isAvailable("cwebp") || tools.isAvailable("ffmpeg") { return .available }
             return .unavailable(reason: "Install a WebP encoder: brew install webp")
@@ -42,6 +43,10 @@ struct ImageConverter: Converter {
         switch format.id {
         case "pdf":
             try ImageCodec.writePDF(image, to: out)
+        case "txt":
+            let text = try TextRecognizer.recognize(image)
+            guard !text.isEmpty else { throw ConversionError.noText }
+            try text.write(to: out, atomically: true, encoding: .utf8)
         case "webp" where !ImageCodec.canEncodeNatively("webp"):
             try await encodeWebP(image, to: out, quality: options.imageQuality)
         default:

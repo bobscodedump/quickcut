@@ -2,16 +2,19 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum FileTypeResolver {
-    /// A regular file or symlink to one: not a directory, not a package, exists.
-    static func isConvertibleFile(_ url: URL) -> Bool {
-        guard url.isFileURL else { return false }
+    /// An existing file, folder or package on disk.
+    static func isConvertibleItem(_ url: URL) -> Bool {
+        url.isFileURL && FileManager.default.fileExists(atPath: url.path)
+    }
+
+    static func isDirectory(_ url: URL) -> Bool {
         var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue else { return false }
-        return true
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
     }
 
     /// Best-effort type: Launch Services first, then magic-byte sniffing (for files without extension), then extension.
-    static func contentType(of url: URL) -> UTType? {
+    static func contentType(of original: URL) -> UTType? {
+        let url = original.resolvingSymlinksInPath()
         let reported = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
         if let reported, !reported.isDynamic, reported != .data, reported != .item { return reported }
         if let sniffed = sniff(url) { return sniffed }

@@ -20,22 +20,37 @@ Personal-use app: not sandboxed, not for the App Store. macOS 14+.
 
   | Input | Output | Engine |
   |---|---|---|
-  | Images (PNG, JPEG, HEIC, TIFF, GIF, BMP, WebP, …) | PNG, JPEG, HEIC, TIFF, GIF, BMP, WebP, PDF | ImageIO (WebP encode: `cwebp` or `ffmpeg`) |
-  | PDF | PNG / JPEG (multi-page → a folder, one image per page), TXT | PDFKit |
+  | Images (PNG, JPEG, HEIC, TIFF, GIF, BMP, WebP, RAW, …) | PNG, JPEG, HEIC, TIFF, GIF, BMP, WebP, AVIF, ICO, ICNS, PDF | ImageIO (WebP encode: `cwebp` or `ffmpeg`) |
+  | Images | TXT (text recognition / OCR) | Vision, on-device |
+  | PDF | PNG / JPEG (multi-page → a folder, one image per page), TXT (text layer, or OCR for scans) | PDFKit + Vision |
   | TXT, RTF, HTML, DOCX, ODT, DOC | TXT, RTF, HTML, DOCX, ODT | `/usr/bin/textutil` |
+  | TXT, RTF, HTML, DOCX, ODT, DOC, Markdown | PDF (searchable text, A4 or US Letter by region) | TextKit (or LibreOffice when installed) |
   | Markdown | HTML | built-in renderer |
+  | DOCX, DOC, ODT, RTF, Pages | PDF, DOCX, ODT | LibreOffice (optional) |
+  | PPTX, PPT, ODP, Keynote | PDF, PPTX, ODP | LibreOffice (optional) |
+  | XLSX, XLS, ODS, Numbers | PDF, XLSX, ODS, CSV | LibreOffice (optional) |
+  | CSV | XLSX, ODS | LibreOffice (optional) |
+  | Folders and bundles | ZIP (`Photos` → `Photos.zip`, `Tool.app` → `Tool.app.zip`) | `ditto`, like Finder's Compress |
+  | ZIP, TAR, TGZ, TBZ, TXZ, 7z | Extract (a single top-level item lands directly, no `foo/foo/` nesting) | `ditto` / `tar` |
   | Video | MP4, MOV, MKV, WebM, GIF; audio-only MP3, M4A, WAV | ffmpeg |
   | Audio | MP3, M4A, WAV, AAC, FLAC, OGG | ffmpeg |
   | MOV ↔ MP4, audio → M4A | | AVFoundation (no ffmpeg needed) |
 
   Without ffmpeg, ffmpeg-only formats are greyed out and the centre shows "Install ffmpeg: brew install ffmpeg"
-  while hovering them. OGG uses Vorbis when your ffmpeg has `libvorbis`, otherwise Opus-in-Ogg.
+  while hovering them. The same goes for LibreOffice ("brew install --cask libreoffice"). OGG uses Vorbis when your
+  ffmpeg has `libvorbis`, otherwise Opus-in-Ogg.
+- **Multi-file drops** also get batch slices that produce one output from everything:
+  - **Merge PDF**: PDFs and images → `Merged.pdf`, in Finder name order ("page 2" before "page 10"). It's the
+    first slice whenever it applies.
+  - **ZIP All**: any files and folders → `Archive.zip`.
 - Up to 3 conversions run concurrently. A native notification appears when a batch finishes (click → reveal in
   Finder) or fails (with the error). Jobs running longer than a second get a small floating progress panel with
   a cancel button.
-- **Read-only locations** fall back to `~/Downloads`, and the notification says so. Folders in a drag are ignored.
+- **Read-only locations** fall back to `~/Downloads`, and the notification says so. Folders can be dragged too
+  (→ ZIP).
 - **Settings**: output location (next to original / fixed folder), JPEG/HEIC/WebP quality, trigger key
-  (Shift / Option / Control / Command), wheel size, show/hide greyed-out formats.
+  (Shift / Option / Control / Command), wheel size, show/hide greyed-out formats. The Tools section shows whether
+  ffmpeg, cwebp and LibreOffice were found.
 - **Menu**: Enabled, Launch at Login, Recent Conversions (reveal / open log), Settings…, Permissions status, Quit.
   The log is at `~/Library/Logs/DragWheel/conversions.log`.
 
@@ -84,7 +99,7 @@ First launch asks for:
 ## How to use
 
 1. Launch DragWheel. The ⟳ icon in the menu bar means it's running (no Dock icon).
-2. **Start dragging** one or more files from Finder, the Desktop, etc. Folders are ignored.
+2. **Start dragging** one or more files or folders from Finder, the Desktop, etc.
 3. **While holding the mouse button, press Shift** (configurable in Settings). The wheel appears under the cursor.
 4. **Drag onto a slice and release.** The converted file is saved next to the original, with " 2", " 3", … added if the name exists.
    For a multi-page PDF → image, a folder is created.
@@ -94,8 +109,12 @@ To cancel: release Shift before reaching the slices, press Esc, move out of the 
 The drag then behaves normally.
 
 Tips:
-- Several files at once show only formats all of them can convert to.
-- Greyed-out slices need a tool (hover one while dragging to see which). Install with `brew install ffmpeg webp`.
+- Several files at once show only formats all of them can convert to, plus **Merge PDF** (for PDFs and images)
+  and **ZIP All**.
+- Drag a folder to zip it; drag a `.zip` / `.tar.gz` / `.7z` to extract it.
+- Drag a screenshot or scanned PDF onto **TXT** to pull the text out of it (OCR).
+- Greyed-out slices need a tool (hover one while dragging to see which). Install with `brew install ffmpeg webp`
+  and, for Office/iWork files, `brew install --cask libreoffice`.
 - Hover **More…** to open a second ring of formats.
 - Menu bar icon: toggle **Enabled**, **Launch at Login**, open **Recent Conversions** or the log, or **Settings…**.
 - Long conversions show a small progress panel in the bottom-right corner, with a cancel button.
@@ -130,21 +149,23 @@ DragWheel/
     SettingsStore.swift              UserDefaults-backed settings
     OutputReservation.swift          atomic unique naming ("x 2.jpg"), rollback of failed outputs
     OutputLocationResolver.swift     next to original / fixed folder / ~/Downloads fallback
-    FileTypeResolver.swift           UTType lookup + magic-byte sniffing, folder filtering
+    FileTypeResolver.swift           UTType lookup (symlinks resolved) + magic-byte sniffing
     ProcessRunner.swift, ToolLocator.swift   async Process wrapper; finds ffmpeg/cwebp in Homebrew dirs + PATH
     RecentConversions.swift, PermissionService.swift
   Formats/
     OutputFormat.swift               the catalogue of target formats (name, extension, SF Symbol, commonness)
     FormatRegistry.swift             UTType → valid targets, multi-file intersection, converter resolution
   Converters/
-    Converter.swift                  the protocol
-    ImageConverter / ImageCodec, PDFConverter, DocumentConverter, MarkdownConverter,
-    AVFoundationConverter, FFmpegConverter
+    Converter.swift                  the Converter (one file → one output) and BatchConverter (many → one) protocols
+    ImageConverter / ImageCodec, TextRecognizer (OCR), PDFConverter, DocumentConverter, MarkdownConverter,
+    DocumentPDFConverter (+ PDFPaginator), LibreOfficeConverter, ArchiveConverter,
+    BatchConverters (MergePDFConverter, ZipAllConverter), AVFoundationConverter, FFmpegConverter
   UI/
     WheelPanelController.swift       borderless non-activating NSPanel (.popUpMenu, all Spaces, full-screen) + drop view
     WheelView.swift, WheelModel.swift, WheelGeometry.swift   SwiftUI wheel; pure geometry/hit-testing
     ProgressPanel.swift, SettingsView.swift
-DragWheelTests/                      92 tests; fixtures (PNG, PDF with text, WAV, H.264 MOV/MP4) are generated at runtime
+DragWheelTests/                      129 tests; fixtures (PNG, text images, PDFs, WAV, H.264 MOV/MP4, archives) are generated
+                                     at runtime. LibreOffice plumbing is tested with a fake `soffice` script.
 ```
 
 ## Adding a converter
@@ -174,6 +195,10 @@ DragWheelTests/                      92 tests; fixtures (PNG, PDF with text, WAV
 4. Add tests next to the existing converter tests (use the helpers in `TestSupport.swift`).
 5. `python3 scripts/generate_project.py` to add the files to the Xcode project.
 
+**Several inputs → one output?** Implement `BatchConverter` instead (`accepts`, `outputBaseName`,
+`convert(inputs:…)`) and add it to `batchConverters` in `FormatRegistry.makeDefault`. It is offered only when 2 or
+more items are dropped and every item is accepted. See `MergePDFConverter` and `ZipAllConverter`.
+
 Rules: write only through `OutputReservation` (that's what guarantees no overwrites and clean rollback on failure);
 throw on failure (the manager rolls back reserved files); honour cancellation.
 
@@ -198,11 +223,22 @@ them a first real try:
     (the panel is transparent and sized tightly to the wheel); if it doesn't on your macOS version, the drop is simply refused.
 - Esc detection uses `CGEventSource.keyState` polling; if your macOS version needs Input Monitoring for that,
   Esc will still cancel the drag itself and the wheel closes when the mouse is released.
-- The Xcode project (`DragWheel.xcodeproj`) was generated and structurally validated (valid plist, no dangling
-  references, every source compiled, scheme present), but I could not run `xcodebuild` on the machine it was written
-  on (system components out of date, see Build). The same sources compile warning-free and pass all tests via SwiftPM.
+- The Xcode project is generated by `scripts/generate_project.py`. `xcodebuild build` and `xcodebuild test` both pass (129 tests, 0 warnings).
 
 Other limitations:
+
+- LibreOffice conversions were only tested with a stand-in `soffice` script (LibreOffice isn't installed on the
+  build machine). The real-LibreOffice test runs automatically once it's installed. The first conversion after
+  launch takes a few seconds while LibreOffice starts.
+- OCR quality depends on the image: printed text works well, handwriting and tiny text less so. OCR is not
+  added to PDF → image or to "searchable PDF" output.
+- The built-in Documents → PDF converter keeps text, fonts, colours and basic layout, but simple TextKit layout
+  drops headers/footers, complex tables and some images. Install LibreOffice for high-fidelity DOCX/ODT → PDF; it
+  takes over automatically.
+- HTML → PDF doesn't load remote images or run scripts.
+- Single-file ZIP is only offered for folders and bundles. To zip loose files, select two or more and use ZIP All.
+  Plain `.gz` / `.bz2` files that aren't tarballs can't be extracted.
+- "Merge PDF" orders by file name, not by the order you selected the files in.
 
 - Files must exist on disk. Promised files (e.g. dragged out of Mail or Photos before export) aren't converted.
 - The second ring may be clipped when the wheel is opened right at a screen edge.

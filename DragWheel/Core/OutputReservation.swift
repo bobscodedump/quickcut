@@ -14,16 +14,16 @@ final class OutputReservation: @unchecked Sendable {
         self.baseName = baseName
     }
 
-    private func candidateName(_ n: Int, ext: String, suffix: String) -> String {
-        let stem = n == 1 ? "\(baseName)\(suffix)" : "\(baseName)\(suffix) \(n)"
+    private func candidateName(_ n: Int, ext: String, suffix: String, base: String) -> String {
+        let stem = n == 1 ? "\(base)\(suffix)" : "\(base)\(suffix) \(n)"
         return ext.isEmpty ? stem : "\(stem).\(ext)"
     }
 
     /// Creates an empty placeholder file with a unique name and returns its URL.
-    func reserveFile(ext: String, suffix: String = "") throws -> URL {
+    func reserveFile(ext: String, suffix: String = "", baseName override: String? = nil) throws -> URL {
         lock.lock(); defer { lock.unlock() }
         for n in 1...100_000 {
-            let url = directory.appendingPathComponent(candidateName(n, ext: ext, suffix: suffix))
+            let url = directory.appendingPathComponent(candidateName(n, ext: ext, suffix: suffix, base: override ?? baseName))
             let fd = open(url.path, O_WRONLY | O_CREAT | O_EXCL, 0o644)
             if fd >= 0 {
                 close(fd)
@@ -37,10 +37,10 @@ final class OutputReservation: @unchecked Sendable {
     }
 
     /// Creates a uniquely named directory (used for multi-page PDF output).
-    func reserveDirectory(suffix: String = "") throws -> URL {
+    func reserveDirectory(suffix: String = "", baseName override: String? = nil) throws -> URL {
         lock.lock(); defer { lock.unlock() }
         for n in 1...100_000 {
-            let url = directory.appendingPathComponent(candidateName(n, ext: "", suffix: suffix), isDirectory: true)
+            let url = directory.appendingPathComponent(candidateName(n, ext: "", suffix: suffix, base: override ?? baseName), isDirectory: true)
             do {
                 try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
                 created.append(url)

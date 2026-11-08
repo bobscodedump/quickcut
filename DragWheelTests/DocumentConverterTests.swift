@@ -100,6 +100,6 @@ final class MarkdownConverterTests: DWTestCase {
     func testMarkdownFileTypeIsRecognised() throws {
         let src = url("a.md")
         try "# hi".write(to: src, atomically: true, encoding: .utf8)
-        XCTAssertEqual(FormatRegistry.makeDefault().targets(for: [src]).map(\.format.id), ["html"])
+        XCTAssertEqual(FormatRegistry.makeDefault().targets(for: [src]).map(\.format.id), ["pdf", "html"])
     }
 }

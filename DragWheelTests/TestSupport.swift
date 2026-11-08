@@ -58,6 +58,40 @@ enum Fixtures {
         return url
     }
 
+    /// A white PNG with large black text (OCR fixture).
+    @discardableResult
+    static func textImage(at url: URL, text: String, width: Int = 1000, height: Int = 220) throws -> URL {
+        let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
+        NSAttributedString(string: text, attributes: [.font: NSFont.boldSystemFont(ofSize: 64), .foregroundColor: NSColor.black])
+            .draw(at: NSPoint(x: 30, y: 70))
+        NSGraphicsContext.restoreGraphicsState()
+        let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(dest))
+        return url
+    }
+
+    /// Writes an executable shell script (used to fake external tools).
+    @discardableResult
+    static func script(at url: URL, _ body: String) throws -> URL {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try ("#!/bin/sh\n" + body).write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+
+    /// Lists the entries of a zip file.
+    static func zipEntries(_ url: URL) async throws -> [String] {
+        let r = try await ProcessRunner.run(executable: URL(fileURLWithPath: "/usr/bin/zipinfo"), arguments: ["-1", url.path])
+        XCTAssertEqual(r.status, 0, r.stderr)
+        return r.stdout.split(separator: "\n").map(String.init)
+    }
+
     /// A PDF with real, extractable text — one page per string.
     @discardableResult
     static func pdf(at url: URL, pages: [String]) throws -> URL {

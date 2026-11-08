@@ -38,7 +38,7 @@ enum ConversionError: LocalizedError {
             let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
             let tail = trimmed.count > 400 ? "…" + trimmed.suffix(400) : trimmed
             return tail.isEmpty ? "\(tool) failed." : "\(tool) failed: \(tail)"
-        case .noText: return "The PDF has no extractable text (it may be a scan)."
+        case .noText: return "No text could be found (OCR found nothing either)."
         case .locked: return "The PDF is password protected."
         case .outputFailed(let m): return m
         }
@@ -84,6 +84,27 @@ extension Converter {
             return !input.conforms(to: own)
         }
     }
+}
+
+/// Several inputs → one output (e.g. merge into one PDF, zip a selection).
+/// Offered only when 2 or more items are dropped and every one is accepted.
+protocol BatchConverter: Sendable {
+    var id: String { get }
+    var format: OutputFormat { get }
+    func accepts(_ type: UTType) -> Bool
+    func availability() -> Availability
+    /// Base name of the produced file, e.g. "Merged" → "Merged.pdf", "Merged 2.pdf"…
+    func outputBaseName(for inputs: [URL]) -> String
+    func convert(
+        inputs: [URL],
+        output: OutputReservation,
+        options: ConversionOptions,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> URL
+}
+
+extension BatchConverter {
+    func availability() -> Availability { .available }
 }
 
 extension UTType {

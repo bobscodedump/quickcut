@@ -2,7 +2,8 @@ import Foundation
 import PDFKit
 import UniformTypeIdentifiers
 
-/// PDF → PNG / JPEG (one image per page; multi-page PDFs go into a folder) and PDF → TXT.
+/// PDF → PNG / JPEG (one image per page; multi-page PDFs go into a folder) and PDF → TXT
+/// (text layer, or OCR when the PDF is a scan).
 struct PDFConverter: Converter {
     let id = "pdf"
     var inputTypes: [UTType] { [.pdf] }
@@ -20,7 +21,8 @@ struct PDFConverter: Converter {
         guard document.pageCount > 0 else { throw ConversionError.unreadableInput }
 
         if format.id == "txt" {
-            let text = (document.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = (document.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty { text = try recognizeText(in: document, progress: progress) }
             guard !text.isEmpty else { throw ConversionError.noText }
             let out = try output.reserveFile(ext: "txt")
             try text.write(to: out, atomically: true, encoding: .utf8)
@@ -46,6 +48,19 @@ struct PDFConverter: Converter {
             progress(Double(index + 1) / Double(count))
         }
         return folder
+    }
+
+    /// OCR fallback for scanned PDFs: renders each page and runs Vision on it.
+    private func recognizeText(in document: PDFDocument, progress: @escaping @Sendable (Double) -> Void) throws -> String {
+        var pages: [String] = []
+        for index in 0..<document.pageCount {
+            try Task.checkCancellation()
+            guard let page = document.page(at: index), let image = ImageCodec.render(page: page, scale: 2) else { continue }
+            let text = try TextRecognizer.recognize(image)
+            if !text.isEmpty { pages.append(text) }
+            progress(Double(index + 1) / Double(document.pageCount) * 0.95)
+        }
+        return pages.joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func writePage(_ page: PDFPage?, format: OutputFormat, quality: Double, to url: URL) throws {

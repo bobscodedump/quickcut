@@ -11,34 +11,42 @@ struct FormatTarget: Identifiable, Equatable, Sendable {
 /// Maps UTTypes to the conversions that can be done on them, and picks the converter for each file.
 final class FormatRegistry: Sendable {
     let converters: [any Converter]
+    let batchConverters: [any BatchConverter]
 
-    init(converters: [any Converter]) {
+    init(converters: [any Converter], batchConverters: [any BatchConverter] = []) {
         self.converters = converters
+        self.batchConverters = batchConverters
     }
 
     /// Default converter set. Order matters: the first *available* converter for a format wins,
     /// so dependency-free converters (AVFoundation) are listed before ffmpeg.
     static func makeDefault(tools: ToolLocator = .shared) -> FormatRegistry {
-        FormatRegistry(converters: [
-            ImageConverter(tools: tools),
-            PDFConverter(),
-            DocumentConverter(),
-            MarkdownConverter(),
-            AVFoundationConverter(),
-            FFmpegConverter(tools: tools),
-        ])
+        FormatRegistry(
+            converters: [
+                ImageConverter(tools: tools),
+                PDFConverter(),
+                DocumentConverter(),
+                MarkdownConverter(),
+                LibreOfficeConverter(tools: tools),   // before DocumentPDFConverter: better fidelity when installed
+                DocumentPDFConverter(),
+                ArchiveConverter(),
+                AVFoundationConverter(),
+                FFmpegConverter(tools: tools),
+            ],
+            batchConverters: [MergePDFConverter(), ZipAllConverter()]
+        )
     }
 
-    /// Drops directories, packages and non-file URLs.
-    static func eligibleFiles(_ urls: [URL]) -> [URL] {
-        urls.filter { FileTypeResolver.isConvertibleFile($0) }
+    /// Keeps existing files, folders and packages; drops missing and non-file URLs.
+    static func eligibleItems(_ urls: [URL]) -> [URL] {
+        urls.filter { FileTypeResolver.isConvertibleItem($0) }
     }
 
     // MARK: Targets
 
     /// Formats every one of the files can be converted to (intersection), ordered available-first then by commonness.
     func targets(for urls: [URL]) -> [FormatTarget] {
-        let files = Self.eligibleFiles(urls)
+        let files = Self.eligibleItems(urls)
         guard !files.isEmpty else { return [] }
         let types = files.map { FileTypeResolver.contentType(of: $0) }
         guard !types.contains(where: { $0 == nil }) else { return [] }
@@ -58,7 +66,16 @@ final class FormatRegistry: Sendable {
                 }
             }
         }
+        if types.count >= 2 {
+            for batch in batchConverters where types.allSatisfy(batch.accepts) {
+                common[batch.format.id] = FormatTarget(format: batch.format, availability: batch.availability())
+            }
+        }
         return common.values.sorted(by: Self.ordering)
+    }
+
+    func batchConverter(for formatID: String) -> (any BatchConverter)? {
+        batchConverters.first { $0.format.id == formatID }
     }
 
     private static func ordering(_ a: FormatTarget, _ b: FormatTarget) -> Bool {

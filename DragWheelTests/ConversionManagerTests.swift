@@ -1,4 +1,5 @@
 import XCTest
+import PDFKit
 import UniformTypeIdentifiers
 @testable import DragWheel
 
@@ -113,12 +114,14 @@ final class ConversionManagerTests: DWTestCase {
         XCTAssertTrue(try String(contentsOf: recents.logURL, encoding: .utf8).contains("FAIL"))
     }
 
-    func testDirectoriesAndUnsupportedFilesAreIgnored() async throws {
+    func testFoldersAndUnsupportedFilesFailCleanly() async throws {
         let folder = url("folder.txt"); try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let m = manager(FakeConverter())
         m.convert(urls: [folder], formatID: "rtf")
         await m.waitUntilIdle()
-        XCTAssertTrue(notifier.summaries.isEmpty)
+        XCTAssertEqual(notifier.summaries.first?.failures.count, 1, "a folder isn't plain text")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url("folder.rtf").path))
+        notifier.summaries.removeAll()
 
         let png = try Fixtures.png(at: url("x.png"))
         m.convert(urls: [png], formatID: "rtf")
@@ -160,5 +163,43 @@ final class ConversionManagerTests: DWTestCase {
         XCTAssertEqual(imageInfo(url("pic.jpg"))?.type, "public.jpeg")
         XCTAssertEqual(imageInfo(url("doc.jpg"))?.type, "public.jpeg")
         XCTAssertTrue(FileManager.default.fileExists(atPath: png.path) && FileManager.default.fileExists(atPath: pdf.path))
+    }
+
+    // MARK: Batch jobs
+
+    func testMergePDFRunsAsOneJobWithOneNotification() async throws {
+        let a = try Fixtures.pdf(at: url("a.pdf"), pages: ["a"])
+        let b = try Fixtures.png(at: url("b.png"))
+        let m = ConversionManager(registry: .makeDefault(), settings: settings, notifier: notifier, recents: recents)
+        m.convert(urls: [a, b], formatID: "merge-pdf")
+        XCTAssertEqual(m.jobs.count, 1)
+        XCTAssertEqual(m.jobs.first?.displayName, "2 files")
+        await m.waitUntilIdle()
+        XCTAssertEqual(notifier.summaries.count, 1)
+        XCTAssertEqual(notifier.summaries[0].succeeded.map(\.lastPathComponent), ["Merged.pdf"])
+        XCTAssertEqual(PDFDocument(url: url("Merged.pdf"))?.pageCount, 2)
+    }
+
+    func testBatchRejectsUnsupportedItemsWithoutOutput() async throws {
+        let a = try Fixtures.pdf(at: url("a.pdf"), pages: ["a"])
+        let t = try textFile("t.txt")
+        let m = ConversionManager(registry: .makeDefault(), settings: settings, notifier: notifier, recents: recents)
+        m.convert(urls: [a, t], formatID: "merge-pdf")
+        await m.waitUntilIdle()
+        XCTAssertEqual(notifier.summaries.first?.failures.count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url("Merged.pdf").path))
+    }
+
+    func testZipAllAndFolderZipThroughManager() async throws {
+        let folder = url("Stuff"); try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let t = try textFile("t.txt")
+        let m = ConversionManager(registry: .makeDefault(), settings: settings, notifier: notifier, recents: recents)
+        m.convert(urls: [folder, t], formatID: "zip-all")
+        await m.waitUntilIdle()
+        m.convert(urls: [folder], formatID: "zip")
+        await m.waitUntilIdle()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url("Archive.zip").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url("Stuff.zip").path))
+        XCTAssertEqual(notifier.summaries.count, 2)
     }
 }

@@ -46,6 +46,7 @@ struct SettingsView: View {
             Section("Tools") {
                 toolRow("ffmpeg", hint: "brew install ffmpeg")
                 toolRow("cwebp", hint: "brew install webp")
+                toolRow("LibreOffice", hint: "brew install --cask libreoffice", url: tools.locateSoffice())
             }
         }
         .formStyle(.grouped)
@@ -53,11 +54,11 @@ struct SettingsView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func toolRow(_ name: String, hint: String) -> some View {
+    private func toolRow(_ name: String, hint: String, url found: URL?? = nil) -> some View {
         HStack {
             Text(name)
             Spacer()
-            if let url = tools.locate(name) {
+            if let url = found ?? tools.locate(name) {
                 Text(url.path).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
             } else {
                 Text("Not found — \(hint)").font(.caption).foregroundStyle(.orange)

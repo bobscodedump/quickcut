@@ -17,6 +17,9 @@ enum ImageCodec {
         case "gif": return "com.compuserve.gif"
         case "bmp": return "com.microsoft.bmp"
         case "webp": return "org.webmproject.webp"
+        case "avif": return "public.avif"
+        case "ico": return "com.microsoft.ico"
+        case "icns": return "com.apple.icns"
         default: return nil
         }
     }
@@ -74,16 +77,43 @@ enum ImageCodec {
         guard let uti = uti(for: formatID), encodableTypes.contains(uti) else {
             throw ConversionError.unsupported("This Mac can't encode \(formatID.uppercased()) with ImageIO.")
         }
-        let source = formatID == "jpeg" ? flattened(image) : image
-        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, uti as CFString, 1, nil) else {
+        let frames: [CGImage]
+        switch formatID {
+        case "jpeg": frames = [flattened(image)]
+        case "ico": frames = iconFrames(image, sizes: [16, 32, 48, 64, 128, 256])
+        case "icns": frames = iconFrames(image, sizes: [16, 32, 64, 128, 256, 512, 1024])
+        default: frames = [image]
+        }
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, uti as CFString, frames.count, nil) else {
             throw ConversionError.outputFailed("Couldn't create \(url.lastPathComponent).")
         }
         var props: [CFString: Any] = [:]
-        if ["jpeg", "heic", "webp"].contains(formatID) { props[kCGImageDestinationLossyCompressionQuality] = quality }
-        CGImageDestinationAddImage(destination, source, props as CFDictionary)
+        if ["jpeg", "heic", "webp", "avif"].contains(formatID) { props[kCGImageDestinationLossyCompressionQuality] = quality }
+        for frame in frames { CGImageDestinationAddImage(destination, frame, props as CFDictionary) }
         guard CGImageDestinationFinalize(destination) else {
             throw ConversionError.outputFailed("Encoding \(formatID.uppercased()) failed.")
         }
+    }
+
+    /// Icon formats need square images of standard sizes. Sizes larger than the source are skipped
+    /// (except the smallest, so tiny sources still produce an icon).
+    static func iconFrames(_ image: CGImage, sizes: [Int]) -> [CGImage] {
+        let longest = max(image.width, image.height)
+        let chosen = sizes.filter { $0 <= max(longest, sizes[0]) }
+        return chosen.compactMap { square(image, side: $0) }
+    }
+
+    /// Aspect-fits `image` into a transparent square canvas.
+    static func square(_ image: CGImage, side: Int) -> CGImage? {
+        guard let ctx = CGContext(
+            data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let scale = CGFloat(side) / CGFloat(max(image.width, image.height))
+        let w = CGFloat(image.width) * scale, h = CGFloat(image.height) * scale
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: CGRect(x: (CGFloat(side) - w) / 2, y: (CGFloat(side) - h) / 2, width: w, height: h))
+        return ctx.makeImage()
     }
 
     static func writePDF(_ image: CGImage, to url: URL) throws {

@@ -10,7 +10,7 @@ struct OutputFormat: Hashable, Identifiable, Sendable {
     /// Lower = more common. Used to pick the "most common 7" for the wheel.
     let commonness: Int
 
-    var utType: UTType? { UTType(filenameExtension: fileExtension) }
+    var utType: UTType? { fileExtension.isEmpty ? nil : UTType(filenameExtension: fileExtension) }
 
     // Images
     static let png = OutputFormat(id: "png", displayName: "PNG", fileExtension: "png", symbolName: "photo", commonness: 0)
@@ -21,12 +21,28 @@ struct OutputFormat: Hashable, Identifiable, Sendable {
     static let webp = OutputFormat(id: "webp", displayName: "WebP", fileExtension: "webp", symbolName: "globe", commonness: 12)
     static let tiff = OutputFormat(id: "tiff", displayName: "TIFF", fileExtension: "tiff", symbolName: "photo.stack", commonness: 15)
     static let bmp = OutputFormat(id: "bmp", displayName: "BMP", fileExtension: "bmp", symbolName: "square.grid.3x3", commonness: 21)
+    static let avif = OutputFormat(id: "avif", displayName: "AVIF", fileExtension: "avif", symbolName: "photo.artframe", commonness: 23)
+    static let ico = OutputFormat(id: "ico", displayName: "ICO", fileExtension: "ico", symbolName: "app.dashed", commonness: 24)
+    static let icns = OutputFormat(id: "icns", displayName: "ICNS", fileExtension: "icns", symbolName: "app.badge", commonness: 25)
     // Documents
     static let txt = OutputFormat(id: "txt", displayName: "TXT", fileExtension: "txt", symbolName: "doc.plaintext", commonness: 5)
     static let docx = OutputFormat(id: "docx", displayName: "DOCX", fileExtension: "docx", symbolName: "doc.text.fill", commonness: 8)
     static let html = OutputFormat(id: "html", displayName: "HTML", fileExtension: "html", symbolName: "chevron.left.forwardslash.chevron.right", commonness: 13)
     static let rtf = OutputFormat(id: "rtf", displayName: "RTF", fileExtension: "rtf", symbolName: "doc.text", commonness: 14)
     static let odt = OutputFormat(id: "odt", displayName: "ODT", fileExtension: "odt", symbolName: "doc", commonness: 22)
+    // Office (LibreOffice)
+    static let pptx = OutputFormat(id: "pptx", displayName: "PPTX", fileExtension: "pptx", symbolName: "play.rectangle.on.rectangle", commonness: 29)
+    static let xlsx = OutputFormat(id: "xlsx", displayName: "XLSX", fileExtension: "xlsx", symbolName: "tablecells", commonness: 30)
+    static let odp = OutputFormat(id: "odp", displayName: "ODP", fileExtension: "odp", symbolName: "rectangle.on.rectangle", commonness: 31)
+    static let ods = OutputFormat(id: "ods", displayName: "ODS", fileExtension: "ods", symbolName: "tablecells.badge.ellipsis", commonness: 32)
+    static let csv = OutputFormat(id: "csv", displayName: "CSV", fileExtension: "csv", symbolName: "list.bullet.rectangle", commonness: 33)
+    // Archives
+    static let zip = OutputFormat(id: "zip", displayName: "ZIP", fileExtension: "zip", symbolName: "doc.zipper", commonness: 26)
+    /// Extracts an archive; the output is a folder (or the single item inside the archive).
+    static let extract = OutputFormat(id: "extract", displayName: "Extract", fileExtension: "", symbolName: "archivebox", commonness: 28)
+    // Batch (several files → one output)
+    static let mergePDF = OutputFormat(id: "merge-pdf", displayName: "Merge PDF", fileExtension: "pdf", symbolName: "doc.on.doc", commonness: -1)
+    static let zipAll = OutputFormat(id: "zip-all", displayName: "ZIP All", fileExtension: "zip", symbolName: "archivebox.fill", commonness: 27)
     // Video
     static let mp4 = OutputFormat(id: "mp4", displayName: "MP4", fileExtension: "mp4", symbolName: "film", commonness: 3)
     static let mov = OutputFormat(id: "mov", displayName: "MOV", fileExtension: "mov", symbolName: "film.stack", commonness: 11)
@@ -41,8 +57,9 @@ struct OutputFormat: Hashable, Identifiable, Sendable {
     static let ogg = OutputFormat(id: "ogg", displayName: "OGG", fileExtension: "ogg", symbolName: "speaker.wave.2", commonness: 20)
 
     static let all: [OutputFormat] = [
-        .png, .jpeg, .pdf, .heic, .gif, .webp, .tiff, .bmp,
-        .txt, .docx, .html, .rtf, .odt,
+        .png, .jpeg, .pdf, .heic, .gif, .webp, .tiff, .bmp, .avif, .ico, .icns,
+        .txt, .docx, .html, .rtf, .odt, .pptx, .xlsx, .odp, .ods, .csv,
+        .zip, .extract, .mergePDF, .zipAll,
         .mp4, .mov, .mkv, .webm,
         .mp3, .m4a, .wav, .flac, .aac, .ogg,
     ]

@@ -65,12 +65,14 @@ enum ProcessRunner {
     static func run(
         executable: URL,
         arguments: [String],
+        currentDirectory: URL? = nil,
         onStdoutLine: (@Sendable (String) -> Void)? = nil
     ) async throws -> ProcessResult {
         let box = ProcessBox()
         let process = box.process
         process.executableURL = executable
         process.arguments = arguments
+        if let currentDirectory { process.currentDirectoryURL = currentDirectory }
         process.standardInput = FileHandle.nullDevice
         let outPipe = Pipe(), errPipe = Pipe()
         process.standardOutput = outPipe

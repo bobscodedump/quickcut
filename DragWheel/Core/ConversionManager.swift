@@ -25,15 +25,18 @@ final class ConversionJob: ObservableObject, Identifiable {
     let id = UUID()
     let source: URL
     let formatName: String
+    /// What the progress panel shows ("photo.png", or "5 files" for a batch).
+    let displayName: String
     @Published var progress: Double = 0
     @Published var state: State = .queued
     /// Becomes true once a job has been running for a while (drives the floating progress indicator).
     @Published var showsProgress = false
     var task: Task<Void, Never>?
 
-    init(source: URL, formatName: String) {
+    init(source: URL, formatName: String, displayName: String? = nil) {
         self.source = source
         self.formatName = formatName
+        self.displayName = displayName ?? source.lastPathComponent
     }
 
     var isActive: Bool { state == .queued || state == .running }
@@ -70,21 +73,42 @@ final class ConversionManager: ObservableObject {
         init(remaining: Int) { self.remaining = remaining }
     }
 
-    /// Converts each file to `formatID`, up to 3 at a time. Originals are never modified.
+    /// Converts each item to `formatID`, up to 3 at a time. Batch formats (Merge PDF, ZIP All) turn all
+    /// items into a single output. Originals are never modified.
     func convert(urls: [URL], formatID: String) {
-        let files = FormatRegistry.eligibleFiles(urls)
-        guard !files.isEmpty, let format = OutputFormat.format(withID: formatID) else { return }
-        let batch = Batch(remaining: files.count)
-        for url in files {
-            let job = ConversionJob(source: url, formatName: format.displayName)
-            jobs.append(job)
-            let task = Task { [weak self] in
-                guard let self else { return }
-                await self.run(job: job, formatID: formatID, batch: batch)
+        let items = FormatRegistry.eligibleItems(urls)
+        guard !items.isEmpty, let format = OutputFormat.format(withID: formatID) else { return }
+
+        if let converter = registry.batchConverter(for: formatID) {
+            let label = items.count == 1 ? items[0].lastPathComponent : "\(items.count) files"
+            let job = ConversionJob(source: items[0], formatName: format.displayName, displayName: label)
+            start(job, batch: Batch(remaining: 1)) { [weak self] in
+                guard let self else { return .failure(CancellationError()) }
+                return await self.performBatch(converter, items: items, job: job)
             }
-            job.task = task
-            allTasks.append(task)
+            return
         }
+
+        let batch = Batch(remaining: items.count)
+        for url in items {
+            let job = ConversionJob(source: url, formatName: format.displayName)
+            start(job, batch: batch) { [weak self] in
+                guard let self else { return .failure(CancellationError()) }
+                return await self.perform(job: job, formatID: formatID)
+            }
+        }
+    }
+
+    private typealias Work = @MainActor () async -> Result<(URL, String?), Error>
+
+    private func start(_ job: ConversionJob, batch: Batch, work: @escaping Work) {
+        jobs.append(job)
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.run(job: job, batch: batch, work: work)
+        }
+        job.task = task
+        allTasks.append(task)
     }
 
     func cancel(_ job: ConversionJob) { job.task?.cancel() }
@@ -99,7 +123,7 @@ final class ConversionManager: ObservableObject {
         }
     }
 
-    private func run(job: ConversionJob, formatID: String, batch: Batch) async {
+    private func run(job: ConversionJob, batch: Batch, work: Work) async {
         await semaphore.wait()
         defer { Task { await semaphore.signal() } }
 
@@ -115,7 +139,7 @@ final class ConversionManager: ObservableObject {
                 job.showsProgress = true
                 self?.objectWillChange.send()
             }
-            outcome = await perform(job: job, formatID: formatID)
+            outcome = await work()
         }
 
         switch outcome {
@@ -138,6 +162,32 @@ final class ConversionManager: ObservableObject {
         batch.remaining -= 1
         if batch.remaining == 0, !(batch.outputs.isEmpty && batch.failures.isEmpty) {
             notifier?.batchFinished(BatchSummary(formatName: job.formatName, succeeded: batch.outputs, failures: batch.failures, notes: batch.notes))
+        }
+    }
+
+    private func performBatch(_ converter: any BatchConverter, items: [URL], job: ConversionJob) async -> Result<(URL, String?), Error> {
+        for item in items {
+            guard let type = FileTypeResolver.contentType(of: item), converter.accepts(type) else {
+                return .failure(ConversionError.unsupported("\(item.lastPathComponent) can't be included in \(converter.format.displayName)."))
+            }
+        }
+        if case .unavailable(let reason) = converter.availability() {
+            return .failure(ConversionError.unsupported(reason))
+        }
+        let location = OutputLocationResolver.resolve(for: items[0], mode: settings.outputMode, fixedFolder: settings.fixedFolderURL)
+        let reservation = OutputReservation(directory: location.directory, baseName: converter.outputBaseName(for: items))
+        let options = settings.conversionOptions
+        let work = Task.detached(priority: .userInitiated) { () -> URL in
+            try await converter.convert(inputs: items, output: reservation, options: options) { value in
+                Task { @MainActor [weak job] in job?.progress = value }
+            }
+        }
+        do {
+            let output = try await withTaskCancellationHandler { try await work.value } onCancel: { work.cancel() }
+            return .success((output, location.note))
+        } catch {
+            reservation.rollback()
+            return .failure(error)
         }
     }
 

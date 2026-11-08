@@ -7,8 +7,11 @@ struct ToolLocator: Sendable {
     static let shared = ToolLocator()
 
     let searchDirectories: [String]
+    /// Also look inside app bundles in /Applications (LibreOffice). Off for test locators.
+    let searchApplications: Bool
 
     init(searchDirectories: [String]? = nil, includePATH: Bool = true) {
+        searchApplications = includePATH
         var dirs = searchDirectories ?? Self.homebrewDirectories
         if includePATH {
             let path = ProcessInfo.processInfo.environment["PATH"] ?? ""
@@ -31,4 +34,13 @@ struct ToolLocator: Sendable {
     }
 
     func isAvailable(_ name: String) -> Bool { locate(name) != nil }
+
+    /// LibreOffice's command line binary: `soffice` on PATH / Homebrew, or inside LibreOffice.app.
+    func locateSoffice() -> URL? {
+        if let url = locate("soffice") { return url }
+        guard searchApplications else { return nil }
+        let candidates = ["/Applications/LibreOffice.app/Contents/MacOS/soffice",
+                          NSHomeDirectory() + "/Applications/LibreOffice.app/Contents/MacOS/soffice"]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }.map { URL(fileURLWithPath: $0) }
+    }
 }

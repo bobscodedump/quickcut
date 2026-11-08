@@ -112,9 +112,9 @@ final class DragMonitor {
         }
     }
 
-    /// File URLs on the drag pasteboard, with directories removed.
+    /// File and folder URLs on the drag pasteboard.
     static func fileURLs(on pasteboard: NSPasteboard) -> [URL] {
         let objects = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
-        return FormatRegistry.eligibleFiles(objects.map { URL(fileURLWithPath: $0.path) })
+        return FormatRegistry.eligibleItems(objects.map { URL(fileURLWithPath: $0.path) })
     }
 }

@@ -36,6 +36,13 @@ final class OutputReservationTests: DWTestCase {
         XCTAssertFalse(names.contains("ERR"))
     }
 
+    func testBaseNameOverride() throws {
+        let r = OutputReservation(directory: dir, baseName: "ignored")
+        XCTAssertEqual(try r.reserveFile(ext: "zip", baseName: "Tool.app").lastPathComponent, "Tool.app.zip")
+        XCTAssertEqual(try r.reserveFile(ext: "zip", baseName: "Tool.app").lastPathComponent, "Tool.app 2.zip")
+        XCTAssertEqual(try r.reserveDirectory(baseName: "photos").lastPathComponent, "photos")
+    }
+
     func testExtensionlessAndFolderNames() throws {
         let r = OutputReservation(directory: dir, baseName: "README")
         XCTAssertEqual(try r.reserveFile(ext: "txt").lastPathComponent, "README.txt")
@@ -93,10 +100,17 @@ final class FileTypeResolverTests: DWTestCase {
         XCTAssertNil(FileTypeResolver.sniff(url("missing")))
     }
 
-    func testDirectoriesAreNotConvertible() throws {
-        XCTAssertFalse(FileTypeResolver.isConvertibleFile(dir))
-        XCTAssertTrue(FileTypeResolver.isConvertibleFile(try Fixtures.png(at: url("a.png"))))
-        XCTAssertFalse(FileTypeResolver.isConvertibleFile(URL(string: "https://example.com/a.png")!))
+    func testConvertibleItems() throws {
+        XCTAssertTrue(FileTypeResolver.isConvertibleItem(dir))
+        XCTAssertTrue(FileTypeResolver.isConvertibleItem(try Fixtures.png(at: url("a.png"))))
+        XCTAssertFalse(FileTypeResolver.isConvertibleItem(url("missing.png")))
+        XCTAssertFalse(FileTypeResolver.isConvertibleItem(URL(string: "https://example.com/a.png")!))
+    }
+
+    func testSymlinkedFolderIsTypedAsFolder() throws {
+        let link = url("link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: dir.appendingPathComponent("..", isDirectory: true))
+        XCTAssertEqual(FileTypeResolver.contentType(of: link)?.conforms(to: .directory), true)
     }
 }
 

@@ -9,7 +9,7 @@ struct JobRow: View {
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(job.source.lastPathComponent) → \(job.formatName)")
+                Text("\(job.displayName) → \(job.formatName)")
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                     .truncationMode(.middle)

@@ -13,7 +13,7 @@ final class FormatRegistryTests: DWTestCase {
 
     func testPNGTargetsExcludeItself() {
         let t = registry().targets(forTypes: [.png])
-        XCTAssertEqual(ids(t), ["jpeg", "heic", "tiff", "gif", "bmp", "webp", "pdf"])
+        XCTAssertEqual(ids(t), ["jpeg", "heic", "tiff", "gif", "bmp", "webp", "avif", "ico", "icns", "pdf", "txt"])
     }
 
     func testJPEGTargetsExcludeJPEGButIncludePNG() {
@@ -24,19 +24,24 @@ final class FormatRegistryTests: DWTestCase {
 
     func testPDFTargets() {
         XCTAssertEqual(ids(registry().targets(forTypes: [.pdf])), ["png", "jpeg", "txt"])
+        XCTAssertEqual(registry().resolve(type: .pdf, formatID: "txt")?.converter.id, "pdf")
     }
 
     func testDocumentTargets() {
         let docx = UTType("org.openxmlformats.wordprocessingml.document")!
-        XCTAssertEqual(ids(registry().targets(forTypes: [docx])), ["txt", "rtf", "html", "odt"])
-        XCTAssertEqual(ids(registry().targets(forTypes: [.plainText])), ["rtf", "html", "docx", "odt"])
-        XCTAssertEqual(ids(registry().targets(forTypes: [.rtf])), ["txt", "html", "docx", "odt"])
-        XCTAssertEqual(ids(registry().targets(forTypes: [.html])), ["txt", "rtf", "docx", "odt"])
+        XCTAssertEqual(ids(registry().targets(forTypes: [docx])), ["txt", "rtf", "html", "odt", "pdf"])
+        XCTAssertEqual(ids(registry().targets(forTypes: [.plainText])), ["rtf", "html", "docx", "odt", "pdf"])
+        XCTAssertEqual(ids(registry().targets(forTypes: [.rtf])), ["txt", "html", "docx", "odt", "pdf"])
+        XCTAssertEqual(ids(registry().targets(forTypes: [.html])), ["txt", "rtf", "docx", "odt", "pdf"])
+        // Without LibreOffice, DOCX → PDF falls back to the built-in converter (available, not greyed out).
+        let pdf = registry().targets(forTypes: [docx]).first { $0.format.id == "pdf" }
+        XCTAssertEqual(pdf?.availability, .available)
+        XCTAssertEqual(registry().resolve(type: docx, formatID: "pdf")?.converter.id, "document-pdf")
     }
 
     func testMarkdownOnlyConvertsToHTML() {
         let md = UTType("net.daringfireball.markdown")!
-        XCTAssertEqual(ids(registry().targets(forTypes: [md])), ["html"])
+        XCTAssertEqual(ids(registry().targets(forTypes: [md])), ["html", "pdf"])
     }
 
     func testSourceCodeAndJSONAreNotTreatedAsPlainText() {
@@ -46,13 +51,19 @@ final class FormatRegistryTests: DWTestCase {
 
     func testMultiFileIntersection() {
         let r = registry()
-        // PNG + JPEG: everything except what only one of them offers.
-        XCTAssertEqual(ids(r.targets(forTypes: [.png, .jpeg])), ["heic", "tiff", "gif", "bmp", "webp", "pdf"])
-        // Image + PDF: only JPEG is common.
-        XCTAssertEqual(ids(r.targets(forTypes: [.png, .pdf])), ["jpeg"])
-        // Image + document: nothing in common.
-        XCTAssertTrue(r.targets(forTypes: [.png, .plainText]).isEmpty)
+        // PNG + JPEG: everything except what only one of them offers, plus the batch targets.
+        XCTAssertEqual(ids(r.targets(forTypes: [.png, .jpeg])),
+                       ["heic", "tiff", "gif", "bmp", "webp", "avif", "ico", "icns", "pdf", "txt", "merge-pdf", "zip-all"])
+        // Image + PDF: JPEG and TXT are common; both can be merged.
+        XCTAssertEqual(ids(r.targets(forTypes: [.png, .pdf])), ["jpeg", "txt", "merge-pdf", "zip-all"])
+        // Image + document: each can become its own PDF, or everything can be zipped together.
+        XCTAssertEqual(ids(r.targets(forTypes: [.png, .plainText])), ["pdf", "zip-all"])
+        // Video + document: nothing in common except zipping.
+        XCTAssertEqual(ids(r.targets(forTypes: [.mpeg4Movie, .plainText])), ["zip-all"])
         XCTAssertTrue(r.targets(forTypes: []).isEmpty)
+        // Batch targets need at least two items, and Merge PDF is the first slice.
+        XCTAssertFalse(ids(r.targets(forTypes: [.png])).contains("merge-pdf"))
+        XCTAssertEqual(r.targets(forTypes: [.pdf, .pdf]).first?.format.id, "merge-pdf")
     }
 
     func testFFmpegFormatsAreUnavailableWithoutFFmpeg() {
@@ -93,14 +104,28 @@ final class FormatRegistryTests: DWTestCase {
         XCTAssertEqual(without?.availability.reason, "Install a WebP encoder: brew install webp")
     }
 
-    func testDirectoriesAreIgnoredAndMixedSelectionsKeepFiles() throws {
-        let folder = dir.appendingPathComponent("Folder.png", isDirectory: true) // even with an image-like name
+    func testFoldersOfferZipAndMixedSelectionsOfferZipAll() throws {
+        let folder = dir.appendingPathComponent("Folder.png", isDirectory: true) // image-like name must not matter
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = try Fixtures.png(at: url("a.png"))
         let r = registry()
-        XCTAssertTrue(r.targets(for: [folder]).isEmpty)
-        XCTAssertEqual(ids(r.targets(for: [folder, file])), ["jpeg", "heic", "tiff", "gif", "bmp", "webp", "pdf"])
-        XCTAssertEqual(FormatRegistry.eligibleFiles([folder, file]), [file])
+        XCTAssertEqual(ids(r.targets(for: [folder])), ["zip"])
+        XCTAssertEqual(ids(r.targets(for: [folder, file])), ["zip-all"])
+        XCTAssertEqual(FormatRegistry.eligibleItems([folder, file, url("missing.png")]), [folder, file])
+    }
+
+    func testArchivesOfferExtractButDocumentsThatAreZipsDoNot() {
+        XCTAssertEqual(ids(registry().targets(forTypes: [.zip])), ["extract"])
+        XCTAssertEqual(ids(registry().targets(forTypes: [UTType(filenameExtension: "tgz")!])), ["extract"])
+        let docx = UTType("org.openxmlformats.wordprocessingml.document")!
+        XCTAssertFalse(ids(registry().targets(forTypes: [docx])).contains("extract"))
+    }
+
+    func testOfficeFormatsAreGreyedOutWithoutLibreOffice() {
+        let pptx = registry().targets(forTypes: [UTType(filenameExtension: "pptx")!])
+        XCTAssertEqual(ids(pptx), ["pdf", "odp"])
+        XCTAssertTrue(pptx.allSatisfy { $0.availability == .unavailable(reason: LibreOfficeConverter.installHint) })
+        XCTAssertEqual(ids(registry().targets(forTypes: [.commaSeparatedText])), ["xlsx", "ods"])
     }
 
     func testFilesWithoutExtensionAreSniffed() throws {
