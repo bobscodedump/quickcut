@@ -480,7 +480,7 @@ func drawFrame(_ t: Double) {
 struct MakeVideo {
     static func main() throws {
         let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "media/Zest-demo.mp4"
-        let posterPath = (out as NSString).deletingPathExtension + "-poster.png"
+        let posterPath = (out as NSString).deletingPathExtension + "-poster.jpg"
         try FileManager.default.createDirectory(at: URL(fileURLWithPath: out).deletingLastPathComponent(), withIntermediateDirectories: true)
         let ffmpegPath = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].first { FileManager.default.isExecutableFile(atPath: $0) }
         guard let ffmpegPath else { fatalError("ffmpeg not found (brew install ffmpeg)") }
@@ -508,7 +508,7 @@ struct MakeVideo {
             pipe.fileHandleForWriting.write(Data(bytes: context.data!, count: bytesPerRow * H))
             if frame == Int(9.0 * Double(FPS)) {   // poster: wheel open, JPEG highlighted
                 let rep = NSBitmapImageRep(cgImage: context.makeImage()!)
-                try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: posterPath))
+                try rep.representation(using: .jpeg, properties: [.compressionFactor: 0.82])!.write(to: URL(fileURLWithPath: posterPath))
             }
             if frame % 150 == 0 { print("frame \(frame)/\(total)") }
         }

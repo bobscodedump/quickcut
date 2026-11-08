@@ -10,6 +10,10 @@ and a radial wheel of valid target formats appears under your cursor. Drop on a 
 saved next to the original (`photo.png` → `photo.jpg`; if that exists, `photo 2.jpg`, `photo 3.jpg`, …).
 The original is never overwritten or deleted.
 
+[![Zest demo: drag a file, press Shift, drop it on a format](media/Zest-demo-poster.jpg)](media/Zest-demo.mp4)
+
+▶ **[Watch the 26-second demo](media/Zest-demo.mp4)** (MP4, 1080p): the drag → Shift → drop flow, then what else it converts.
+
 Personal-use app: not sandboxed, not for the App Store.
 
 **Requirements**: macOS 14 or later (Apple Silicon or Intel). To build: Xcode 15 or later.
@@ -231,7 +235,7 @@ throw on failure (the manager rolls back reserved files); honour cancellation.
   ```sh
   swiftc -O -parse-as-library -o build/make_video scripts/make_video.swift \
     DragWheel/UI/WheelGeometry.swift DragWheel/Core/WheelVisibilityPolicy.swift DragWheel/UI/LemonGlyph.swift
-  build/make_video build/video/Zest-demo.mp4     # also writes Zest-demo-poster.png
+  build/make_video media/Zest-demo.mp4     # also writes media/Zest-demo-poster.jpg (used at the top of this README)
   ```
 - `swift test` runs everything without Xcode project machinery; `scripts/test.sh` does the same through xcodebuild.
 - `Zest.app/Contents/MacOS/DragWheel --demo` / `--demo-many` show a sample wheel (the latter exercises "More…" and a greyed slice);
